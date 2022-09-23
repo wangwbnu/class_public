@@ -51,6 +51,7 @@ LDFLAG = -g -fPIC
 HYREC = external/HyRec2020
 RECFAST = external/RecfastCLASS
 HEATING = external/heating
+PCHIP = external/pchip
 
 ########################################################
 ###### IN PRINCIPLE THE REST SHOULD BE LEFT UNCHANGED ##
@@ -87,6 +88,11 @@ INCLUDES += -I../$(HYREC)
 EXTERNAL += hyrectools.o helium.o hydrogen.o history.o wrap_hyrec.o energy_injection.o
 HEADERFILES += $(wildcard ./$(HYREC)/*.h)
 endif
+
+vpath %.c $(PCHIP)
+INCLUDES += -I../$(PCHIP)
+EXTERNAL += pchip.o
+HEADERFILES += $(wildcard ./$(PCHIP)/*.h)
 
 %.o:  %.c .base $(HEADERFILES)
 	cd $(WRKDIR);$(CC) $(OPTFLAG) $(OMPFLAG) $(CCFLAG) $(INCLUDES) -c ../$< -o $*.o

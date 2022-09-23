@@ -2158,9 +2158,12 @@ int input_read_parameters_general(struct file_content * pfc,
     else if (strcmp(string1,"reio_inter") == 0){
       pth->reio_parametrization = reio_inter;
     }
+    else if (strcmp(string1,"reio_flexknot") == 0){
+      pth->reio_parametrization = reio_flexknot;
+    }    
     else{
       class_stop(errmsg,
-                 "You specified 'reio_parametrization' as '%s'. It has to be one of {'reio_none','reio_camb','reio_bins_tanh','reio_half_tanh','reio_many_tanh','reio_inter'}.",string1);
+                 "You specified 'reio_parametrization' as '%s'. It has to be one of {'reio_none','reio_camb','reio_bins_tanh','reio_half_tanh','reio_many_tanh','reio_inter', 'reio_flexknot'}.",string1);
     }
   }
 
@@ -2223,6 +2226,16 @@ int input_read_parameters_general(struct file_content * pfc,
     class_read_int("reio_inter_num",pth->reio_inter_num);
     class_read_list_of_doubles("reio_inter_z",pth->reio_inter_z,pth->reio_inter_num);
     class_read_list_of_doubles("reio_inter_xe",pth->reio_inter_xe,pth->reio_inter_num);
+    break;
+
+    /** 8.e) reionization parameters if reio_parametrization=reio_flexknot */
+  case reio_flexknot:
+    /* Read */
+    class_read_int("reio_flexknot_num",pth->reio_flexknot_num);
+    class_read_list_of_doubles("reio_flexknot_z",pth->reio_flexknot_z,pth->reio_flexknot_num);
+    class_read_list_of_doubles("reio_flexknot_xe",pth->reio_flexknot_xe,pth->reio_flexknot_num);
+    class_read_double("helium_fullreio_redshift",pth->helium_fullreio_redshift_flexknot);
+    class_read_double("helium_fullreio_width",pth->helium_fullreio_width_flexknot);
     break;
 
   default:
@@ -5658,6 +5671,12 @@ int input_default_params(struct background *pba,
   pth->reio_inter_num = 0;
   pth->reio_inter_z = NULL;
   pth->reio_inter_xe = NULL;
+  /** 8.e) 'reio_flexknot' case */
+  pth->reio_flexknot_num = 0;
+  pth->reio_flexknot_z = NULL;
+  pth->reio_flexknot_xe = NULL; 
+  pth->helium_fullreio_redshift_flexknot=3.5;
+  pth->helium_fullreio_width_flexknot=0.5;
 
   /** 9) Damping scale */
   pth->compute_damping_scale = _FALSE_;

@@ -29,7 +29,8 @@ enum reionization_parametrization {
                                    reio_bins_tanh,  /**< binned reionization history with tanh inteprolation between bins */
                                    reio_half_tanh,  /**< half a tanh, instead of the full tanh */
                                    reio_many_tanh,  /**< similar to reio_camb but with more than one tanh */
-                                   reio_inter       /**< linear interpolation between specified points */
+                                   reio_inter,       /**< linear interpolation between specified points */
+                                   reio_flexknot
 };
 
 /**
@@ -126,6 +127,15 @@ struct thermodynamics
 
   double * reio_inter_xe; /**< discrete \f$ X_e(z)\f$ values */
 
+  int reio_flexknot_num; /**< with how many nodes do we want for PCHIP interpolation to describe the reionization history */
+  
+  double * reio_flexknot_z; /**< discrete z values for flexknot */
+  
+  double * reio_flexknot_xe; /**< discrete \f$ X_e(z)\f$ values for flexknot */
+  
+  double helium_fullreio_redshift_flexknot; /**< redshift for of helium reionization */
+
+  double helium_fullreio_width_flexknot; /**< width of helium reionization */
   /** parameters for energy injection */
 
   short has_exotic_injection; /**< true if some exotic mechanism
@@ -425,19 +435,21 @@ struct thermo_reionization_parameters{
   int index_re_helium_fullreio_redshift; /**< helium full reionization redshift */
   int index_re_helium_fullreio_width;    /**< a width defining the duration of helium full reionization in the reio_camb scheme */
 
-  /* parameters used by reio_bins_tanh, reio_many_tanh, reio_inter */
+  /* parameters used by reio_bins_tanh, reio_many_tanh, reio_inter, reio_flexknot */
 
   int re_z_size;                /**< number of reionization jumps */
   int index_re_first_z;        /**< redshift at which we start to impose reionization function */
   int index_re_first_xe;       /**< ionization fraction at redshift first_z (inferred from recombination code) */
   int index_re_step_sharpness; /**< sharpness of tanh jump */
-
+  int index_re_helium_fullreio_fraction_flexknot; /**< helium full reionization fraction inferred from primordial helium fraction */
+  int index_re_helium_fullreio_redshift_flexknot; /**< helium full reionization redshift */
+  int index_re_helium_fullreio_width_flexknot;    /**< a width defining the duration of helium full reionization in the reio_camb scheme */
   /* parameters used by all schemes */
 
   int index_re_reio_start;     /**< redshift above which hydrogen reionization neglected */
 
   double * reionization_parameters; /**< vector containing all reionization parameters necessary to compute xe(z) */
-  int re_size;              /**< length of vector reionization_parameters */
+  int re_size;              /**< length of vector reionization_parameters */ 
 };
 
 /**

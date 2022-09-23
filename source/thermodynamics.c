@@ -37,7 +37,7 @@
 #include "hyrectools.h"
 #include "helium.h"
 #include "wrap_hyrec.h"
-
+#include "pchip.h"
 
 /**
  * Thermodynamics quantities at given redshift z.
@@ -1030,6 +1030,19 @@ int thermodynamics_indices(
     class_define_index(ptrp->index_re_xe_before,_TRUE_,index_re,1);
     break;
 
+    /* case where x_e(z) is interpolated between knots with PCHIP */
+  case reio_flexknot:
+
+    ptrp->re_z_size=pth->reio_flexknot_num;
+
+    class_define_index(ptrp->index_re_first_z,_TRUE_,index_re,ptrp->re_z_size);
+    class_define_index(ptrp->index_re_first_xe,_TRUE_,index_re,ptrp->re_z_size);
+    class_define_index(ptrp->index_re_xe_before,_TRUE_,index_re,1);
+    class_define_index(ptrp->index_re_helium_fullreio_fraction_flexknot,_TRUE_,index_re,1);
+    class_define_index(ptrp->index_re_helium_fullreio_redshift_flexknot,_TRUE_,index_re,1);
+    class_define_index(ptrp->index_re_helium_fullreio_width_flexknot,_TRUE_,index_re,1);
+    break;
+
   default:
     class_stop(pth->error_message,
                "value of reio_parametrization=%d unclear",pth->reio_parametrization);
@@ -1453,6 +1466,84 @@ int thermodynamics_set_parameters_reionization(
                ppr->reionization_z_start_max);
     break;
 
+    /** - (f) if reionization implemented with reio_flexknot scheme */
+  case reio_flexknot:
+
+    /* this parametrization requires at least one point (z,xe) */
+    class_test(pth->reio_flexknot_num<1,
+               pth->error_message,
+               "current implementation of reio_flexknot requires at least one point (z,xe)");
+
+    /* this parametrization requires that the first z value is zero */
+    class_test(pth->reio_flexknot_z[0] <= 0.,
+               pth->error_message,
+               "For reio_flexknot scheme, the first value of reio_flexknot_z[...]  should always be greater than 0.0, you passed %e",
+               pth->reio_flexknot_z[0]);
+
+    /* check that z input can be interpreted by the code */
+    for (point=1; point<pth->reio_flexknot_num; point++) {
+      class_test(pth->reio_flexknot_z[point-1]>=pth->reio_flexknot_z[point],
+                 pth->error_message,
+                 "value of reionization bin centers z_i expected to be passed in growing order, unlike: %e, %e",
+                 pth->reio_flexknot_z[point-1],
+                 pth->reio_flexknot_z[point]);
+    }
+
+    /* this parametrization requires that the last x_i value is zero (the code will substitute it with the value that one would get in
+       absence of reionization, as compute by the recombination code) */
+    class_test(pth->reio_flexknot_xe[pth->reio_flexknot_num-1] != 0.,
+               pth->error_message,
+               "For reio_flexknot scheme, the last value of reio_flexknot_xe[...]  should always be 0.0, you passed %e",
+               pth->reio_flexknot_xe[pth->reio_flexknot_num-1]);
+
+    /* copy here the (z,xe) values passed in input. */
+    for (point=0; point<preio->re_z_size; point++) {
+
+      preio->reionization_parameters[preio->index_re_first_z+point] = pth->reio_flexknot_z[point];
+
+      /* check that xe input can be interpreted by the code */
+      xe_input = pth->reio_flexknot_xe[point];
+      if (xe_input >= 0.) {
+        xe_actual = xe_input;
+      }
+      //-1 means "after hydrogen + first helium recombination"
+      else if ((xe_input<-0.9) && (xe_input>-1.1)) {
+        xe_actual = 1. + pth->YHe/(_not4_*(1.-pth->YHe));
+      }
+      //-2 means "after hydrogen + second helium recombination"
+      else if ((xe_input<-1.9) && (xe_input>-2.1)) {
+        xe_actual = 1. + 2.*pth->YHe/(_not4_*(1.-pth->YHe));
+      }
+      //other negative number is nonsense
+      else {
+        class_stop(pth->error_message,
+                   "Your entry for reio_flexknot_xe[%d] is %e, this makes no sense (either positive or 0,-1,-2)",
+                   point,pth->reio_flexknot_xe[point]);
+      }
+
+      preio->reionization_parameters[preio->index_re_first_xe+point] = xe_actual;
+    }
+    /* set preio->reionization_parameters[preio->index_re_first_xe] to the xe after hydrogen + first helium recombination */
+    preio->reionization_parameters[preio->index_re_first_xe] = 1. + pth->YHe/(_not4_*(1.-pth->YHe));
+    
+    /* copy highest redshift in reio_start */
+    preio->reionization_parameters[preio->index_re_reio_start] = preio->reionization_parameters[preio->index_re_first_z+preio->re_z_size-1];
+
+    /* check it's not too big */
+    class_test(preio->reionization_parameters[preio->index_re_reio_start] > ppr->reionization_z_start_max,
+               pth->error_message,
+               "starting redshift for reionization = %e, reionization_z_start_max = %e, you must change the binning or increase reionization_z_start_max",
+               preio->reionization_parameters[preio->index_re_reio_start],
+               ppr->reionization_z_start_max);
+               
+               
+    preio->reionization_parameters[preio->index_re_helium_fullreio_fraction_flexknot] = pth->YHe/(_not4_*(1.-pth->YHe)); /* helium_fullreio_fraction (checked before that denominator is non-zero) */
+    preio->reionization_parameters[preio->index_re_helium_fullreio_redshift_flexknot] = pth->helium_fullreio_redshift_flexknot; /* helium_fullreio_redshift */
+    preio->reionization_parameters[preio->index_re_helium_fullreio_width_flexknot] = pth->helium_fullreio_width_flexknot;    /* helium_fullreio_width */
+    break;
+
+
+
   default:
     class_stop(pth->error_message,
                "value of reio_parametrization=%d unclear",pth->reio_parametrization);
@@ -1795,6 +1886,10 @@ int thermodynamics_output_summary(
     break;
 
   case reio_inter:
+    printf(" -> interpolated reionization history gives optical depth = %f\n",pth->tau_reio);
+    break;
+
+  case reio_flexknot:
     printf(" -> interpolated reionization history gives optical depth = %f\n",pth->tau_reio);
     break;
 
@@ -4291,6 +4386,46 @@ int thermodynamics_reionization_function(
     }
     break;
 
+    /** - implementation of reio_flexknot */
+  case reio_flexknot:{
+    int point;
+    double node_z[preio->re_z_size+2];
+    double node_xe[preio->re_z_size+2];
+    /** - --> case z > z_reio_start */
+    if (z > preio->reionization_parameters[preio->index_re_first_z+preio->re_z_size-1]) {
+      *x = preio->reionization_parameters[preio->index_re_xe_before];
+    }
+    else{
+      /* fix the final xe to xe_before*/
+      preio->reionization_parameters[preio->index_re_first_xe+preio->re_z_size-1] = preio->reionization_parameters[preio->index_re_xe_before];  
+      for (point=0; point<preio->re_z_size; point++) {
+        node_z[point+1] = preio->reionization_parameters[preio->index_re_first_z+point];
+        node_xe[point+1] = preio->reionization_parameters[preio->index_re_first_xe+point];
+	}
+
+      node_z[0] = 0;
+      node_xe[0] = node_xe[1];
+      node_z[preio->re_z_size+1] = node_z[preio->re_z_size] + 1;
+      node_xe[preio->re_z_size+1] = node_xe[preio->re_z_size];
+      pchip(node_z, node_xe, preio->re_z_size + 2, &z, 1, x); 
+      
+      /** - --> case z < z_reio_start: helium contribution (tanh of simpler argument) */                    
+      argument = (preio->reionization_parameters[preio->index_re_helium_fullreio_redshift_flexknot] - z)
+        /preio->reionization_parameters[preio->index_re_helium_fullreio_width_flexknot];
+
+      *x += preio->reionization_parameters[preio->index_re_helium_fullreio_fraction_flexknot]
+        *(tanh(argument)+1.)/2.;
+        
+      class_test(*x<0.,
+                 pth->error_message,
+                 "Interpolation gives negative ionization fraction\n",
+                 argument,
+                 preio->reionization_parameters[preio->index_re_first_xe+i],
+                 preio->reionization_parameters[preio->index_re_first_xe+i+1]);
+    }
+    break;
+    }
+    
   default:
     class_stop(pth->error_message,
                "value of reio_parametrization=%d unclear",pth->reio_parametrization);
@@ -4718,3 +4853,5 @@ int thermodynamics_idm_initial_temperature(
 
   return _SUCCESS_;
 }
+
+
